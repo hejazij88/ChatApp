@@ -1,9 +1,32 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using System.Collections.Concurrent;
 
 namespace ChatApp.Hub;
 
 public class ChatHub:Microsoft.AspNetCore.SignalR.Hub
 {
+
+    private static ConcurrentDictionary<string, string> _users = new();
+
+    public override Task OnConnectedAsync()
+    {
+        return base.OnConnectedAsync();
+    }
+
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        var user = _users.FirstOrDefault(x => x.Value == Context.ConnectionId).Key;
+        if (user != null)
+            _users.TryRemove(user, out _);
+        return base.OnDisconnectedAsync(exception);
+    }
+
+    public async Task RegisterUser(string username)
+    {
+        _users[username] = Context.ConnectionId;
+        await Clients.All.SendAsync("UserListUpdated", _users.Keys.ToList());
+    }
+
     public async Task SendToGroup(string group, string user, string message)
     {
         await Clients.Group(group).SendAsync("ReceiveMessage", user, message);
