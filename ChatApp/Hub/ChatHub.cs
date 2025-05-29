@@ -7,12 +7,27 @@ public class ChatHub:Microsoft.AspNetCore.SignalR.Hub
 {
 
     private static ConcurrentDictionary<string, string> _users = new();
+    private static ConcurrentBag<string> _groups = new();
+
 
     public override Task OnConnectedAsync()
     {
         return base.OnConnectedAsync();
     }
 
+    public async Task CreateGroup(string groupName)
+    {
+        if (!_groups.Contains(groupName))
+        {
+            _groups.Add(groupName);
+            await Clients.All.SendAsync("GroupListUpdated", _groups.ToList());
+        }
+    }
+
+    public async Task RequestGroupList()
+    {
+        await Clients.Caller.SendAsync("GroupListUpdated", _groups.ToList());
+    }
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         var user = _users.FirstOrDefault(x => x.Value == Context.ConnectionId).Key;
