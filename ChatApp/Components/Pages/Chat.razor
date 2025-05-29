@@ -6,13 +6,28 @@
 
 @if (string.IsNullOrEmpty(userName))
 {
-    <div class="mb-3">
-        <label>UserName:</label>
-        <input @bind="tempUserName" class="form-control" />
-        <label> Group Name:</label>
-        <input @bind="tempGroupName" class="form-control" />
-        <button class="btn btn-primary mt-2" @onclick="JoinGroup">Join</button>
-    </div>
+    @if (string.IsNullOrEmpty(userName))
+    {
+        <div class="mb-3">
+            <label>Username:</label>
+            <input @bind="tempUserName" class="form-control" />
+
+            <label class="mt-3">Select Group:</label>
+            <select @bind="tempGroupName" class="form-control">
+                <option value="">-- Select Group --</option>
+                @foreach (var g in groupList)
+                {
+                    <option value="@g">@g</option>
+                }
+            </select>
+
+            <label class="mt-3">یا ساخت گروه جدید:</label>
+            <input @bind="newGroupName" class="form-control" />
+            <button class="btn btn-info mt-1" @onclick="CreateNewGroup">Create Group</button>
+
+            <button class="btn btn-primary mt-3" @onclick="JoinGroup">Join to Chat</button>
+        </div>
+    }
 
     <div class="mt-4">
         <h5>Private Message</h5>
@@ -57,6 +72,11 @@ else
     private string tempGroupName;
     private string message;
     private List<ChatMessage> messages = new();
+    private List<string> groupList = new();
+    private string newGroupName;
+
+
+
 
 
     protected override async Task OnInitializedAsync()
@@ -84,7 +104,16 @@ else
             StateHasChanged();
         });
 
+        hubConnection.On<List<string>>("GroupListUpdated", (groups) =>
+        {
+            groupList = groups;
+            StateHasChanged();
+        });
+
         await hubConnection.StartAsync();
+
+        await hubConnection.InvokeAsync("RequestGroupList");
+    
     }
     private async Task SendPrivateMessage()
     {
@@ -95,12 +124,15 @@ else
             privateMessage = "";
         }
     }
-
-
-
-
-   
-
+    private async Task CreateNewGroup()
+    {
+        if (!string.IsNullOrWhiteSpace(newGroupName))
+        {
+            await hubConnection.InvokeAsync("CreateGroup", newGroupName);
+            tempGroupName = newGroupName;
+            newGroupName = "";
+        }
+    }
     private async Task JoinGroup()
     {
         userName = tempUserName;
