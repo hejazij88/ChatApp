@@ -1,5 +1,7 @@
 using ChatApp.Components;
+using ChatApp.Data;
 using ChatApp.Hub;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,7 +9,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.Services.AddDbContext<ChatDbContext>(options =>
+    options.UseSqlite("Data Source=chat.db"));
+
 builder.Services.AddSignalR();
+
+
 
 var app = builder.Build();
 
