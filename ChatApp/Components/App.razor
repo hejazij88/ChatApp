@@ -14,8 +14,9 @@
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
-    <script src="_framework/blazor.web.js"></script>
+<Router AppAssembly="@typeof(App).Assembly"/>
+ <Routes @rendermode="InteractiveServer"/> 
+<script src="_framework/blazor.web.js"></script>
 </body>
 
 </html>

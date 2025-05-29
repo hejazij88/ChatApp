@@ -1,0 +1,79 @@
+﻿@page "/chat"
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager Navigation
+
+<h3>Chat</h3>
+
+@if (string.IsNullOrEmpty(userName))
+{
+    <div class="mb-3">
+        <label>UserName:</label>
+        <input @bind="tempUserName" class="form-control" />
+        <label> Group Name:</label>
+        <input @bind="tempGroupName" class="form-control" />
+        <button class="btn btn-primary mt-2" @onclick="JoinGroup">Join</button>
+    </div>
+}
+else
+{
+    <div>
+        <h5>@groupName - @userName</h5>
+        <div style="height:300px; overflow-y:auto; border:1px solid #ccc; padding:10px;">
+            @foreach (var msg in messages)
+            {
+                <div><strong>@msg.User:</strong> @msg.Text</div>
+            }
+        </div>
+        <input @bind="message" @bind:event="oninput" class="form-control mt-2" placeholder="Write Message..." />
+        <button class="btn btn-success mt-2" @onclick="SendMessage">Send</button>
+    </div>
+}
+
+@code {
+    private HubConnection hubConnection;
+    private string userName;
+    private string tempUserName;
+    private string groupName;
+    private string tempGroupName;
+    private string message;
+    private List<ChatMessage> messages = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/chathub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hubConnection.On<string, string>("ReceiveMessage", (user, msg) =>
+        {
+            messages.Add(new ChatMessage { User = user, Text = msg });
+            StateHasChanged();
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    private async Task JoinGroup()
+    {
+        userName = tempUserName;
+        groupName = tempGroupName;
+
+        await hubConnection.InvokeAsync("JoinGroup", groupName);
+    }
+
+    private async Task SendMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            await hubConnection.InvokeAsync("SendToGroup", groupName, userName, message);
+            message = string.Empty;
+        }
+    }
+
+    public class ChatMessage
+    {
+        public string User { get; set; }
+        public string Text { get; set; }
+    }
+}
