@@ -1,11 +1,18 @@
-﻿using Microsoft.AspNetCore.SignalR;
+﻿using ChatApp.Data;
+using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
+using ChatApp.Models;
 
 namespace ChatApp.Hub;
 
 public class ChatHub:Microsoft.AspNetCore.SignalR.Hub
 {
+    private readonly ChatDbContext _db;
 
+    public ChatHub(ChatDbContext db)
+    {
+        _db = db;
+    }
     private static ConcurrentDictionary<string, string> _users = new();
     private static ConcurrentBag<string> _groups = new();
 
@@ -23,7 +30,21 @@ public class ChatHub:Microsoft.AspNetCore.SignalR.Hub
             await Clients.All.SendAsync("GroupListUpdated", _groups.ToList());
         }
     }
+    public async Task LoadGroupMessages(string group)
+    {
+        var messages = _db.Messages
+            .Where(m => m.Group == group)
+            .OrderBy(m => m.Timestamp)
+            .Select(m => new
+            {
+                m.Sender,
+                m.Text,
+                Timestamp = m.Timestamp.ToString("HH:mm")
+            })
+            .ToList();
 
+        await Clients.Caller.SendAsync("LoadGroupHistory", messages);
+    }
     public async Task RequestGroupList()
     {
         await Clients.Caller.SendAsync("GroupListUpdated", _groups.ToList());
@@ -44,6 +65,15 @@ public class ChatHub:Microsoft.AspNetCore.SignalR.Hub
 
     public async Task SendToGroup(string group, string user, string message)
     {
+        var msg = new ChatMessage
+        {
+            Sender = user,
+            Group = group,
+            Text = message
+        };
+        _db.Messages.Add(msg);
+        await _db.SaveChangesAsync();
+
         await Clients.Group(group).SendAsync("ReceiveMessage", user, message);
     }
 
@@ -57,8 +87,20 @@ public class ChatHub:Microsoft.AspNetCore.SignalR.Hub
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, group);
     }
 
-    public async Task SendPrivate(string receiverConnectionId, string sender, string message)
+    public async Task SendPrivate(string toUser, string fromUser, string message)
     {
-        await Clients.Client(receiverConnectionId).SendAsync("ReceivePrivate", sender, message);
+        if (_users.TryGetValue(toUser, out var connId))
+        {
+            var msg = new ChatMessage
+            {
+                Sender = fromUser,
+                Receiver = toUser,
+                Text = message
+            };
+            _db.Messages.Add(msg);
+            await _db.SaveChangesAsync();
+
+            await Clients.Client(connId).SendAsync("ReceivePrivate", fromUser, message);
+        }
     }
 }

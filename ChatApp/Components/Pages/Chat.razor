@@ -88,26 +88,55 @@ else
 
         hubConnection.On<string, string>("ReceiveMessage", (user, msg) =>
         {
-            messages.Add(new ChatMessage { User = user, Text = msg });
-            StateHasChanged();
+            InvokeAsync(() =>
+            {
+                messages.Add(new ChatMessage { User = user, Text = msg });
+                StateHasChanged();
+            });
         });
 
         hubConnection.On<string, string>("ReceivePrivate", (user, msg) =>
         {
-            messages.Add(new ChatMessage { User = $"(Privet) {user}", Text = msg });
-            StateHasChanged();
+            InvokeAsync(() =>
+            {
+                messages.Add(new ChatMessage { User = $"(Privet) {user}", Text = msg });
+                StateHasChanged();
+            });
         });
 
         hubConnection.On<List<string>>("UserListUpdated", (users) =>
         {
-            userList = users.Where(u => u != userName).ToList();
-            StateHasChanged();
+            InvokeAsync(() =>
+            {
+                userList = users.Where(u => u != userName).ToList();
+                StateHasChanged();
+            });
         });
 
         hubConnection.On<List<string>>("GroupListUpdated", (groups) =>
         {
-            groupList = groups;
-            StateHasChanged();
+            InvokeAsync(() =>
+            {
+                groupList = groups;
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.On<List<object>>("LoadGroupHistory", (history) =>
+        {
+            InvokeAsync(() =>
+            {
+                foreach (var msg in history)
+                {
+                    var dict = msg as IDictionary<string, object>;
+                    messages.Add(new ChatMessage
+                    {
+                        User = $"{dict["Timestamp"]} {dict["Sender"]}",
+                        Text = dict["Text"].ToString()
+                    });
+                }
+                StateHasChanged();
+            });
         });
 
         await hubConnection.StartAsync();
@@ -140,6 +169,9 @@ else
 
         await hubConnection.InvokeAsync("JoinGroup", groupName);
         await hubConnection.InvokeAsync("RegisterUser", userName);
+        await hubConnection.InvokeAsync("LoadGroupMessages", groupName);
+
+        messages.Clear();
     }
 
     private async Task SendMessage()
