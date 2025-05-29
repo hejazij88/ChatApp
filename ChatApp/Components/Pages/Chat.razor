@@ -13,6 +13,21 @@
         <input @bind="tempGroupName" class="form-control" />
         <button class="btn btn-primary mt-2" @onclick="JoinGroup">Join</button>
     </div>
+
+    <div class="mt-4">
+        <h5>Private Message</h5>
+        <label>Select User:</label>
+        <select @bind="selectedUser" class="form-control">
+            <option value="">-- Select User --</option>
+            @foreach (var user in userList)
+            {
+                <option value="@user">@user</option>
+            }
+        </select>
+
+        <input @bind="privateMessage" class="form-control mt-2" placeholder="Private Message..." />
+        <button class="btn btn-warning mt-2" @onclick="SendPrivateMessage">Send</button>
+    </div>
 }
 else
 {
@@ -30,6 +45,11 @@ else
 }
 
 @code {
+
+
+    private List<string> userList = new();
+    private string selectedUser;
+    private string privateMessage;
     private HubConnection hubConnection;
     private string userName;
     private string tempUserName;
@@ -37,6 +57,7 @@ else
     private string tempGroupName;
     private string message;
     private List<ChatMessage> messages = new();
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -51,8 +72,34 @@ else
             StateHasChanged();
         });
 
+        hubConnection.On<string, string>("ReceivePrivate", (user, msg) =>
+        {
+            messages.Add(new ChatMessage { User = $"(Privet) {user}", Text = msg });
+            StateHasChanged();
+        });
+
+        hubConnection.On<List<string>>("UserListUpdated", (users) =>
+        {
+            userList = users.Where(u => u != userName).ToList();
+            StateHasChanged();
+        });
+
         await hubConnection.StartAsync();
     }
+    private async Task SendPrivateMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(privateMessage) && !string.IsNullOrWhiteSpace(selectedUser))
+        {
+            await hubConnection.InvokeAsync("SendPrivate", selectedUser, userName, privateMessage);
+            messages.Add(new ChatMessage { User = $"(To {selectedUser})", Text = privateMessage });
+            privateMessage = "";
+        }
+    }
+
+
+
+
+   
 
     private async Task JoinGroup()
     {
@@ -60,6 +107,7 @@ else
         groupName = tempGroupName;
 
         await hubConnection.InvokeAsync("JoinGroup", groupName);
+        await hubConnection.InvokeAsync("RegisterUser", userName);
     }
 
     private async Task SendMessage()
